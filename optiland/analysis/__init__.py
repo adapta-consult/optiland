@@ -16,3 +16,4 @@ from .mtf_vs_field import MTFvsField
 from .through_focus_mtf import ThroughFocusMTF
 from .through_focus_spot_diagram import ThroughFocusSpotDiagram
 from .jones_pupil import JonesPupil
+from .chromatic import ChromaticFocalShift, LateralColor
