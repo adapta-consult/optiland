@@ -12,8 +12,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import optiland.backend as be
+from optiland._suggest import options_hint
 from optiland.apodization import BaseApodization
-from optiland.geometries import Plane, StandardGeometry
+from optiland.geometries import StandardGeometry
 from optiland.materials import IdealMaterial
 
 if TYPE_CHECKING:
@@ -44,14 +45,12 @@ class OpticUpdater:
 
         """
         surface = self.optic.surfaces[surface_number]
-
-        # change geometry from plane to standard
-        if isinstance(surface.geometry, Plane):
+        try:
+            surface.geometry.set_radius(value)
+        except AttributeError:
+            # Plane geometry does not support set_radius; replace with StandardGeometry
             cs = surface.geometry.cs
-            new_geometry = StandardGeometry(cs, radius=value, conic=0)
-            surface.geometry = new_geometry
-        else:
-            surface.geometry.radius = value
+            surface.geometry = StandardGeometry(cs, radius=value, conic=0)
 
     def set_conic(self, value, surface_number):
         """Set the conic constant of a surface.
@@ -74,6 +73,13 @@ class OpticUpdater:
                 thickness to be modified.
 
         """
+        from optiland.paraxial_path import require_global_z_geometry
+
+        # Thickness updates rebuild downstream cs.z from cumulative
+        # thicknesses, which is only meaningful while the beam path runs
+        # along global +z. Guard before touching any geometry.
+        require_global_z_geometry(self.optic.surfaces, "set_thickness")
+
         if surface_number == 0:
             # First surface thickness sets the object distance.
             # We treat this specially to avoid issues with infinite values.
@@ -82,19 +88,27 @@ class OpticUpdater:
             # No need to shift other surfaces as they are relative to S1 at z=0
             return
 
-        positions = self.optic.surfaces.positions
-        # Detach positions used as reference points to prevent stale computation
-        # graphs (from prior iterations) from being pulled into the current graph.
-        if hasattr(positions, "detach"):
-            positions = positions.detach()
-        delta_t = value - positions[surface_number + 1] + positions[surface_number]
-        positions = be.copy(positions)  # required to avoid in-place modification
-        positions[surface_number + 1 :] = positions[surface_number + 1 :] + delta_t
-        positions = positions - positions[1]  # force surface 1 to be at zero
-        for k, surface in enumerate(self.optic.surfaces):
-            surface.geometry.cs.z = be.array(positions[k])
-        if surface_number < len(self.optic.surfaces):
-            self.optic.surfaces[surface_number].thickness = value
+        # Source of truth for downstream positions is each surface's `.thickness`
+        # attribute. Update the requested one first, then rebuild every cs.z
+        # downstream from those thickness values (rather than incrementally
+        # mutating cs.z). This keeps every current-iteration thickness tensor
+        # in the autograd graph — the prior incremental form needed `detach()`
+        # to drop stale graphs from earlier iterations, but that also severed
+        # in-iteration grad paths when multiple thickness variables were
+        # updated sequentially (only the last one kept its gradient). See #569.
+        surfaces = self.optic.surfaces
+        n = len(surfaces)
+        if surface_number < n:
+            surfaces[surface_number].thickness = value
+
+        # Surface 1 anchored at z=0; cs.z[k] = sum of upstream thicknesses.
+        if n >= 2:
+            z = be.array(0.0)
+            surfaces[1].geometry.cs.z = be.array(z)
+            for k in range(2, n):
+                t_prev = surfaces[k - 1].thickness
+                z = z + (t_prev if hasattr(t_prev, "detach") else be.array(t_prev))
+                surfaces[k].geometry.cs.z = be.array(z)
 
     def set_index(self, value: float, surface_number: int) -> None:
         """Set the index of refraction of a surface.
@@ -167,8 +181,9 @@ class OpticUpdater:
         """
         if isinstance(polarization, str) and polarization != "ignore":
             raise ValueError(
-                "Invalid polarization state. Must be either "
-                'PolarizationState or "ignore".',
+                f"Invalid polarization state, got {polarization!r}. Pass a "
+                "PolarizationState instance, or the string 'ignore' to "
+                "disable polarization ray tracing.",
             )
         self.optic.polarization = polarization
 
@@ -179,7 +194,22 @@ class OpticUpdater:
             scale_factor (float): The factor by which to scale all relevant
                 system dimensions (radii, thicknesses, EPD, physical apertures).
 
+        Raises:
+            UnsupportedParaxialGeometryError: If the beam path is folded off
+                global +z (or entered along another direction), before any
+                value is read or any geometry is touched. Scaling rebuilds
+                positions from cumulative thicknesses along global z, which
+                would move folded surfaces off their physical legs; guarding
+                only inside ``set_thickness`` would leave the system
+                partially scaled.
         """
+        from optiland.paraxial_path import require_global_z_geometry
+
+        # Preflight-atomic: reject before reading thicknesses (which walk
+        # the unfolded path) and before the first geometry.scale() call, so
+        # a rejected system is left exactly as it was.
+        require_global_z_geometry(self.optic.surfaces, "scale_system")
+
         num_surfaces = self.optic.surfaces.num_surfaces
         thicknesses = [
             self.optic.surfaces.get_thickness(surf_idx)[0]
@@ -255,13 +285,26 @@ class OpticUpdater:
         """Adjusts the position of the image surface (last surface) such that
         the paraxial marginal ray crosses the optical axis at this new location.
         This effectively sets the paraxial focus.
+
+        Raises:
+            UnsupportedParaxialGeometryError: If the system's unfolded axial
+                coordinate is not global z (folded or off-axis-entered
+                systems), before any surface is mutated -- the focus offset
+                is an unfolded axial distance and writing it into ``cs.z``
+                would move the image plane off its physical leg.
         """
+        from optiland.paraxial_path import require_global_z_geometry
+
+        # Guard before any computation touches geometry: no partial mutation.
+        require_global_z_geometry(self.optic.surfaces, "image_solve")
+
         ya, ua = self.optic.paraxial.marginal_ray()
         offset = float(ya[-1, 0] / ua[-1, 0])
         surfaces = self.optic.surfaces
-        self.optic.surfaces[-1].geometry.cs.z -= offset
-        surfaces[-2].thickness = (
-            self.optic.surfaces[-1].geometry.cs.z - surfaces[-2].geometry.cs.z
+        old_z = float(surfaces[-1].geometry.cs.z)
+        surfaces[-1].geometry.cs.z = be.array(old_z - offset)
+        surfaces[-2].thickness = float(surfaces[-1].geometry.cs.z) - float(
+            surfaces[-2].geometry.cs.z
         )
 
     def flip(self):
@@ -272,7 +315,10 @@ class OpticUpdater:
         """
         if self.optic.surfaces.num_surfaces < 3:
             raise ValueError(
-                "Optic flip requires at least 3 surfaces (obj, element, img)"
+                f"Cannot flip a system with "
+                f"{self.optic.surfaces.num_surfaces} surface(s): at least 3 "
+                "are required (object, one optical surface, image). Add the "
+                "missing surfaces with lens.add_surface(...) first."
             )
 
         # 1. Call SurfaceGroup.flip()
@@ -310,6 +356,7 @@ class OpticUpdater:
         """Sets the apodization for the optical system.
 
         This method supports setting the apodization in multiple ways:
+
         1. By providing an instance of a `BaseApodization` subclass.
         2. By providing a string identifier (e.g., "GaussianApodization")
            and keyword arguments for its parameters.
@@ -335,7 +382,10 @@ class OpticUpdater:
                 apodization_class = BaseApodization._registry[apodization]
                 self.optic.apodization = apodization_class(**kwargs)
             else:
-                raise ValueError(f"Unknown apodization type: {apodization}")
+                raise ValueError(
+                    f"Unknown apodization type, got {apodization!r}."
+                    f"{options_hint(apodization, BaseApodization._registry)}"
+                )
         elif isinstance(apodization, dict):
             self.optic.apodization = BaseApodization.from_dict(apodization)
         else:

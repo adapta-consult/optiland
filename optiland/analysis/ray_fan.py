@@ -54,10 +54,47 @@ class RayFan(BaseAnalysis):
 
         super().__init__(optic, wavelengths)
 
+    def _plot_ray_fan_field(self, ax_y, ax_x, field, Px, Py) -> None:
+        """Plot the tangential/sagittal ray fan curves for one field."""
+        for wp in self.wavelengths:
+            wavelength = wp.value
+            ex = self.data[f"{field}"][f"{wavelength}"]["x"]
+            ey = self.data[f"{field}"][f"{wavelength}"]["y"]
+            i_x = self.data[f"{field}"][f"{wavelength}"]["intensity_x"]
+            i_y = self.data[f"{field}"][f"{wavelength}"]["intensity_y"]
+            ex[i_x == 0], ey[i_y == 0] = be.nan, be.nan
+
+            ax_y.plot(
+                be.to_numpy(Py),
+                be.to_numpy(ey),
+                zorder=3,
+                label=f"{wavelength:.4f} µm",
+            )
+            ax_x.plot(
+                be.to_numpy(Px),
+                be.to_numpy(ex),
+                zorder=3,
+                label=f"{wavelength:.4f} µm",
+            )
+
+        for ax, xlabel, ylabel in (
+            (ax_y, "$P_y$", "$\\epsilon_y$ (mm)"),
+            (ax_x, "$P_x$", "$\\epsilon_x$ (mm)"),
+        ):
+            ax.grid()
+            ax.axhline(0, lw=1, c="gray")
+            ax.axvline(0, lw=1, c="gray")
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_xlim(-1, 1)
+            ax.set_title(f"Hx: {field[0]:.3f}, Hy: {field[1]:.3f}")
+
     def view(
         self,
         fig_to_plot_on: plt.Figure = None,
         figsize: tuple[float, float] = (10, 3.33),
+        *,
+        show: bool = True,
     ):
         """
         Displays the ray fan plot, either in a new window or on a provided GUI figure.
@@ -67,6 +104,8 @@ class RayFan(BaseAnalysis):
                 If None, a new figure will be created. Defaults to None.
             figsize (tuple[float, float], optional): The size of the figure.
                 Defaults to (10, 3.33).
+            show (bool): If True (default), calls plt.show(). Set False for
+                headless use.
         Returns:
             tuple: The current figure and its axes.
         """
@@ -104,43 +143,7 @@ class RayFan(BaseAnalysis):
 
         for k, fp in enumerate(self.fields):
             field = fp.coord
-            ax_y, ax_x = axs[k, 0], axs[k, 1]
-            for wp in self.wavelengths:
-                wavelength = wp.value
-                ex = self.data[f"{field}"][f"{wavelength}"]["x"]
-                ey = self.data[f"{field}"][f"{wavelength}"]["y"]
-                i_x = self.data[f"{field}"][f"{wavelength}"]["intensity_x"]
-                i_y = self.data[f"{field}"][f"{wavelength}"]["intensity_y"]
-                ex[i_x == 0], ey[i_y == 0] = be.nan, be.nan
-
-                ax_y.plot(
-                    be.to_numpy(Py),
-                    be.to_numpy(ey),
-                    zorder=3,
-                    label=f"{wavelength:.4f} µm",
-                )
-                ax_x.plot(
-                    be.to_numpy(Px),
-                    be.to_numpy(ex),
-                    zorder=3,
-                    label=f"{wavelength:.4f} µm",
-                )
-
-            ax_y.grid()
-            ax_y.axhline(0, lw=1, c="gray")
-            ax_y.axvline(0, lw=1, c="gray")
-            ax_y.set_xlabel("$P_y$")
-            ax_y.set_ylabel("$\\epsilon_y$ (mm)")
-            ax_y.set_xlim(-1, 1)
-            ax_y.set_title(f"Hx: {field[0]:.3f}, Hy: {field[1]:.3f}")
-
-            ax_x.grid()
-            ax_x.axhline(0, lw=1, c="gray")
-            ax_x.axvline(0, lw=1, c="gray")
-            ax_x.set_xlabel("$P_x$")
-            ax_x.set_ylabel("$\\epsilon_x$ (mm)")
-            ax_x.set_xlim(-1, 1)
-            ax_x.set_title(f"Hx: {field[0]:.3f}, Hy: {field[1]:.3f}")
+            self._plot_ray_fan_field(axs[k, 0], axs[k, 1], field, Px, Py)
 
         if num_fields > 0:
             handles, labels = axs[0, 0].get_legend_handles_labels()
@@ -156,6 +159,8 @@ class RayFan(BaseAnalysis):
         current_fig.tight_layout()
         if is_gui_embedding and hasattr(current_fig, "canvas"):
             current_fig.canvas.draw_idle()
+        if show and not is_gui_embedding:
+            plt.show()
         return current_fig, current_fig.get_axes()
 
     def _remove_distortion(self, data):

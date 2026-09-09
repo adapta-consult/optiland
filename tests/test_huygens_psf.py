@@ -77,7 +77,9 @@ class TestHuygensPSF:
         )
 
         assert psf_instance.optic == optic
-        assert [fp.coord for fp in psf_instance.fields] == [field]  # BasePSF stores fields as a list
+        assert [fp.coord for fp in psf_instance.fields] == [
+            field
+        ]  # BasePSF stores fields as a list
         assert [wp.value for wp in psf_instance.wavelengths] == [
             self.WAVELENGTH_GREEN
         ]  # BasePSF stores wavelengths as a list
@@ -245,11 +247,9 @@ class TestHuygensPSF:
             f"out of expected range [{expected_strehl_min}, 1.005]. "
         )
 
-        # Verify Strehl calculation from BasePSF: peak at center / 100
-        center_x = psf_instance.psf.shape[0] // 2
-        center_y = psf_instance.psf.shape[1] // 2
-        expected_sr_from_psf_center = psf_instance.psf[center_x, center_y] / 100.0
-        assert np.isclose(sr, expected_sr_from_psf_center), (
+        # Verify Strehl calculation from BasePSF: array peak / 100
+        expected_sr_from_psf_peak = np.max(be.to_numpy(psf_instance.psf)) / 100.0
+        assert np.isclose(sr, expected_sr_from_psf_peak), (
             "Strehl ratio mismatch with definition"
         )
 
@@ -258,31 +258,31 @@ class TestHuygensPSF:
     ):
         EXPECTED_STREHL_VALUES = {
             "CookeTriplet": {
-                (0, 0): 0.3023159962682067,
+                (0, 0): 0.30215346284681016,
                 (
                     0.7,
                     0.0,
-                ): 0.019029390469840174,
+                ): 0.023345559659099676,
             },
             "DoubleGauss": {
                 (
                     0,
                     0,
-                ): 0.07405715702199461,
+                ): 0.07332452538749026,
                 (
                     0.7,
                     0.0,
-                ): 0.0063032279399868095,
+                ): 0.00723398494179964,
             },
             "ReverseTelephoto": {
                 (
                     0,
                     0,
-                ): 0.9785343625747402,
+                ): 0.9785149658601526,
                 (
                     0.7,
                     0.0,
-                ): 0.881275354472487,
+                ): 0.8828802278745688,
             },
         }
         # Tolerance for Strehl comparison

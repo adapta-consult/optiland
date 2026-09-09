@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from optiland.optimization.optimizer.base import BaseOptimizer
 from scipy.optimize import minimize_scalar
 
+from ..live_plotter import LiveOptimizationPlotter
+
 if TYPE_CHECKING:
     from optiland.optimization.problem import OptimizationProblem
 
@@ -30,14 +32,21 @@ class OrthogonalDescent(BaseOptimizer):
     def __init__(self, problem: OptimizationProblem):
         super().__init__(problem)
 
-    def optimize(self, max_iter=100, tol=1e-4):
+    def optimize(self, max_iter=100, tol=1e-4, plot=False):
         """
         Run the orthogonal descent optimization.
 
         Args:
             max_iter (int): Maximum number of full cycles through all variables.
             tol (float): Tolerance for convergence (relative change in cost function).
+            plot: If True, update live plots during optimization.
         """
+
+        live_plotter: LiveOptimizationPlotter | None = None
+        if plot:
+            live_plotter = LiveOptimizationPlotter(self)
+            live_plotter.initialize()
+
         self.problem.initial_value = self.problem.rss().item()
 
         current_value = self.problem.initial_value
@@ -48,12 +57,19 @@ class OrthogonalDescent(BaseOptimizer):
             for _, generic_var in enumerate(self.problem.variables):
                 self._optimize_variable(generic_var)
 
+            if live_plotter is not None:
+                live_plotter.update()
+
             current_value = self.problem.rss().item()
 
             relative_change = abs(prev_value - current_value) / (prev_value + 1e-10)
 
             if relative_change < tol:
                 break
+
+        if live_plotter is not None:
+            live_plotter.update()
+            live_plotter.finalize()
 
     def _optimize_variable(self, generic_var):
         """
@@ -67,14 +83,11 @@ class OrthogonalDescent(BaseOptimizer):
         # Calculate initial cost
         f_start = self.problem.rss().item()
 
-        # Determine bounds
-        # Use explicit bounds if available, otherwise use wide range to prevent overflow
-        min_v = generic_var.min_val
-        max_v = generic_var.max_val
-
         limit = 1e12  # Soft limit for unbounded variables
-        low = min_v if min_v is not None else -limit
-        high = max_v if max_v is not None else limit
+        # ``value`` and ``bounds`` are both expressed in the variable's scaled space.
+        bounds = generic_var.bounds
+        low = bounds[0] if bounds is not None and bounds[0] is not None else -limit
+        high = bounds[1] if bounds is not None and bounds[1] is not None else limit
 
         def objective_func(x):
             # Enforce bounds manually for 'brent' method

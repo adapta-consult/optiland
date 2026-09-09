@@ -184,6 +184,44 @@ class StandardSurfaceHandler(BaseSurfaceHandler):
 
 
 @register
+class ParaxialSurfaceHandler(BaseSurfaceHandler):
+    """Handler for PARAXIAL surfaces."""
+
+    zemax_type: ClassVar[str] = "PARAXIAL"
+    optiland_type: ClassVar[str] = "paraxial"
+
+    def parse(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Parse a PARAXIAL surface raw dict.
+
+        Args:
+            raw: Raw surface dict from ZemaxDataParser.
+
+        Returns:
+            Kwargs for ``optic.surfaces.add()``.
+        """
+        return {
+            "surface_type": self.optiland_type,
+            "radius": raw.get("radius", float(be.inf)),
+        }
+
+    def format(self, surface: Surface) -> dict[str, Any]:
+        """Format a paraxial surface to Zemax operand dict.
+
+        Args:
+            surface: The Optiland surface.
+
+        Returns:
+            Raw operand dict for ZemaxFileEncoder.
+        """
+        geom = surface.geometry
+        return {
+            "TYPE": self.zemax_type,
+            "CURV": _curvature(float(geom.radius)),
+            "PARM_1": float(surface.interaction_model.f),
+        }
+
+
+@register
 class EvenAsphereSurfaceHandler(BaseSurfaceHandler):
     """Handler for EVENASPH (even asphere) surfaces."""
 
@@ -410,7 +448,7 @@ class ToroidalSurfaceHandler(BaseSurfaceHandler):
         r_yz = float(geom.R_yz)
         r_rot = float(geom.R_rot)
 
-        # R_rot == inf → PARM 1 = 0 in Zemax convention
+        # R_rot == inf -> PARM 1 = 0 in Zemax convention
         parm1 = 0.0 if (math.isinf(r_rot) or r_rot == 0.0) else (1.0 / r_rot)
 
         raw_coeffs = geom.coeffs_poly_y

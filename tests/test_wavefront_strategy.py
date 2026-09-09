@@ -41,6 +41,10 @@ class ConcreteReferenceStrategy(ReferenceStrategy):
         """Mock implementation for the abstract method."""
         pass  # Not needed for testing the base class methods
 
+    def _create_reference_geometry(self, rays):
+        """Mock implementation for the abstract method."""
+        pass
+
 
 class TestReferenceStrategy:
     """Tests for the abstract ReferenceStrategy base class."""
@@ -190,6 +194,51 @@ class TestChiefRayStrategy:
         assert wavefront_data.intensity.shape == (num_points,)
         assert isinstance(wavefront_data.radius, float)
         assert wavefront_data.radius > 0
+
+    def test_masks_non_finite_ray_samples(self, set_test_backend):
+        """Test that invalid rays cannot contaminate downstream wavefront data."""
+        optic = MagicMock()
+        optic.primary_wavelength = 0.55
+        optic.surfaces.n.return_value = be.array([1.0])
+        optic.surfaces.positions = [0.0]
+        optic.surfaces.intensity = be.array([[1.0, 1.0]])
+        optic.paraxial.XPL.return_value = 0.0
+        optic.fields.field_definition = object()
+
+        chief_ray = MagicMock()
+        chief_ray.x = be.array(0.0)
+        chief_ray.y = be.array(0.0)
+        chief_ray.z = be.array(10.0)
+        chief_ray.opd = be.array(0.0)
+        optic.trace_generic.return_value = chief_ray
+
+        rays = MagicMock()
+        rays.x = be.array([0.0, float("nan")])
+        rays.y = be.array([0.0, float("nan")])
+        rays.z = be.array([10.0, float("nan")])
+        rays.L = be.array([0.0, float("nan")])
+        rays.M = be.array([0.0, float("nan")])
+        rays.N = be.array([1.0, float("nan")])
+        rays.opd = be.array([0.0, float("nan")])
+        rays.p = None
+        rays.get_exit_fields = None
+        optic.trace.return_value = rays
+
+        geometry = MagicMock(radius=10.0)
+        geometry.path_length.side_effect = [
+            be.array(0.0),
+            be.array([0.0, float("nan")]),
+        ]
+        strategy = ChiefRayStrategy(optic, MagicMock())
+        strategy._create_reference_geometry = MagicMock(return_value=geometry)
+
+        wavefront_data = strategy.compute_wavefront_data((0.0, 0.0), 0.55)
+
+        assert be.all(be.isfinite(wavefront_data.pupil_x))
+        assert be.all(be.isfinite(wavefront_data.pupil_y))
+        assert be.all(be.isfinite(wavefront_data.pupil_z))
+        assert be.all(be.isfinite(wavefront_data.opd))
+        assert_allclose(wavefront_data.intensity, be.array([1.0, 0.0]))
 
 
 class TestCentroidReferenceSphereStrategy:
@@ -349,7 +398,7 @@ def test_create_strategy(optic, distribution, set_test_backend):
 
     # Test best_fit_sphere strategy creation
     bfs_strategy = create_strategy("best_fit_sphere", optic, distribution)
-    assert isinstance(bfs_strategy, CentroidReferenceSphereStrategy)
+    assert isinstance(bfs_strategy, BestFitSphereStrategy)
 
 
 class TestBestFitSphereStrategy:

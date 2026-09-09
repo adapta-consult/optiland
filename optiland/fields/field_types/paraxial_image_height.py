@@ -6,6 +6,7 @@ Kramer Harrison, 2025
 from __future__ import annotations
 
 import optiland.backend as be
+from optiland.utils import globalize_coordinates
 
 from .base import BaseFieldDefinition
 
@@ -33,6 +34,7 @@ class ParaxialImageHeightField(BaseFieldDefinition):
             ValueError: If the field type is "object_height" for an object at
                 infinity.
         """
+        self._reject_folded_use(optic)
         y_img_target = optic.fields.max_field * Hy
         x_img_target = optic.fields.max_field * Hx
 
@@ -56,18 +58,21 @@ class ParaxialImageHeightField(BaseFieldDefinition):
         else:
             y_obj = y_obj_unit * (y_img_target / y_img_unit)
             x_obj = y_obj_unit * (x_img_target / y_img_unit)
-            x0 = x_obj
-            y0 = y_obj
-            z0 = (
-                optic.object_surface.geometry.sag(x0, y0)
-                + optic.object_surface.geometry.cs.z
+            x_local = be.atleast_1d(be.array(x_obj))
+            y_local = be.atleast_1d(be.array(y_obj))
+            z_local = optic.object_surface.geometry.sag(x_local, y_local)
+
+            # Globalize the local coordinates
+            x0, y0, z0 = globalize_coordinates(
+                optic.object_surface, x_local, y_local, z_local
             )
+
             if be.size(x0) == 1:
-                x0 = be.full_like(Px, x0)
+                x0 = be.full_like(be.atleast_1d(Px), x0)
             if be.size(y0) == 1:
-                y0 = be.full_like(Px, y0)
+                y0 = be.full_like(be.atleast_1d(Px), y0)
             if be.size(z0) == 1:
-                z0 = be.full_like(Px, z0)
+                z0 = be.full_like(be.atleast_1d(Px), z0)
         return x0, y0, z0
 
     def get_paraxial_object_position(self, optic, Hy, y1, EPL):
@@ -83,6 +88,7 @@ class ParaxialImageHeightField(BaseFieldDefinition):
                 position.
 
         """
+        self._reject_folded_use(optic)
         y_img_target = optic.fields.max_field * Hy
         y_img_unit, _ = self._trace_unit_chief_ray(optic, plane="image")
         y_obj_unit, u_obj_unit = self._trace_unit_chief_ray(optic, plane="object")

@@ -10,7 +10,7 @@ You are an expert Python software engineer specializing in optical design algori
 - **Lint (Check):** `.venv\Scripts\python.exe -m ruff check optiland/`
 
 ## Project knowledge
-- **Tech Stack:** Python >= 3.10, NumPy, SciPy, Pandas, Numba (>= 0.60), PyTorch (used for differentiable physics/optimization loops)
+- **Tech Stack:** Python >= 3.11, NumPy, SciPy, Pandas, Numba (>= 0.60), PyTorch (used for differentiable physics/optimization loops)
 - **Environment:** `.venv\Scripts\python.exe`
 - **File Structure:**
   - `optiland/` – Core optical design engine, ray tracing, and physics models (you READ/WRITE here).
@@ -33,6 +33,7 @@ You are an expert Python software engineer specializing in optical design algori
 from __future__ import annotations
 import numpy as np
 
+
 class SphericalSurface:
     """Represents a spherical optical surface.
 
@@ -46,7 +47,7 @@ class SphericalSurface:
     def calculate_sag(self, h: np.ndarray) -> np.ndarray:
         """Calculates the surface sag at given radial heights."""
         c = 1.0 / self.radius_of_curvature
-        return (c * h**2) / (1.0 + np.sqrt(1.0 - (c * h)**2))
+        return (c * h**2) / (1.0 + np.sqrt(1.0 - (c * h) ** 2))
 ```
 
 ## Boundaries
@@ -67,7 +68,7 @@ You are an expert Python UI developer specializing in PySide6, PyQt, and scienti
 - **Lint (Check):** `.venv\Scripts\python.exe -m ruff check optiland_gui/`
 
 ## Project knowledge
-- **Tech Stack:** Python >= 3.10, PySide6, Matplotlib, VTK, qtconsole.
+- **Tech Stack:** Python >= 3.11, PySide6, Matplotlib, VTK, qtconsole.
 - **Environment:** `.venv\Scripts\python.exe`
 - **File Structure:**
   - `optiland_gui/` – Source code for the PySide6 Graphical User Interface (you READ/WRITE here).
@@ -96,7 +97,7 @@ You are a meticulous quality software engineer who writes comprehensive tests. Y
 - **Check Coverage:** `.venv\Scripts\python.exe -m pytest --cov=optiland tests/`
 
 ## Project knowledge
-- **Tech Stack:** Python >= 3.10, pytest, pytest-cov, codecov, NumPy, Numba, PyTorch.
+- **Tech Stack:** Python >= 3.11, pytest, pytest-cov, codecov, NumPy, Numba, PyTorch.
 - **File Structure:**
   - `tests/` – Unit and integration tests (you READ/WRITE here).
   - `optiland/` & `optiland_gui/` – Application code (you READ ONLY from here).
@@ -126,7 +127,7 @@ You are a strict code quality engineer. You fix code style and formatting but sh
 - **Lint (Format):** `.venv\Scripts\python.exe -m ruff format .`
 
 ## Project knowledge
-- **Tech Stack:** Ruff, Python >= 3.10.
+- **Tech Stack:** Ruff, Python >= 3.11.
 - **File Structure:** Entire repository, governed by `pyproject.toml` Ruff settings.
 
 ## Your role
@@ -151,7 +152,7 @@ You are an expert technical writer for the Optiland project. You read Python cod
 - **Lint Markdown:** `.venv\Scripts\python.exe -m ruff check docs/` 
 
 ## Project knowledge
-- **Tech Stack:** Python >= 3.10, Markdown.
+- **Tech Stack:** Python >= 3.11, Markdown.
 - **File Structure:**
   - `docs/` – All documentation (you WRITE to here).
   - `optiland/` & `optiland_gui/` – Source code (you READ from here).

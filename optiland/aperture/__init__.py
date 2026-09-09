@@ -18,6 +18,7 @@ Public API
 
 from __future__ import annotations
 
+from optiland._suggest import options_hint
 from optiland.aperture.base import BaseSystemAperture
 from optiland.aperture.epd import EPDAperture
 from optiland.aperture.float_by_stop import FloatByStopAperture
@@ -43,10 +44,19 @@ def make_system_aperture(aperture_type: str, value: float) -> BaseSystemAperture
         ValueError: If *aperture_type* is not a registered type.
 
     """
+    # Aliases for legacy Zemax aperture identifiers. ``paraxialImageFNO`` is
+    # the paraxial image-space F/#; in the paraxial regime it matches
+    # Optiland's ``imageFNO`` (differences only appear as second-order
+    # corrections in fast systems), which is good enough as a starting point.
+    _ALIASES = {
+        "paraxialImageFNO": "imageFNO",
+    }
+    aperture_type = _ALIASES.get(aperture_type, aperture_type)
     if aperture_type not in BaseSystemAperture._registry:
         raise ValueError(
-            f"Aperture type must be one of "
-            f"{list(BaseSystemAperture._registry)}; got '{aperture_type}'."
+            f"Unknown aperture type, got '{aperture_type}'."
+            f"{options_hint(aperture_type, BaseSystemAperture._registry)} "
+            "For example: lens.set_aperture(aperture_type='EPD', value=25)."
         )
     return BaseSystemAperture._registry[aperture_type](value)
 

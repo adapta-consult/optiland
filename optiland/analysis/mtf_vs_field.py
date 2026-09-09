@@ -131,51 +131,19 @@ class MTFvsField(BaseAnalysis):
 
         return results
 
-    def view(
-        self,
-        fig_to_plot_on: Figure | None = None,
-        figsize: tuple[float, float] = (8, 5),
-    ) -> tuple[Figure, Axes]:
-        """
-        Plots the MTF versus the field coordinate for each frequency and wavelength.
-
-        Args:
-            fig_to_plot_on (Figure, optional): An existing matplotlib Figure to
-                plot on. If provided, the plot will be embedded in this figure.
-                If None (default), a new figure will be created.
-            figsize (tuple[float, float], optional): Size of the figure to create
-                if `fig_to_plot_on` is None. Defaults to (8, 5).
-
-        Returns:
-            tuple[Figure, Axes]: The matplotlib Figure and Axes objects
-                containing the plot.
-        """
-        is_gui_embedding = fig_to_plot_on is not None
-
-        if is_gui_embedding:
-            current_fig = fig_to_plot_on
-            current_fig.clear()
-            ax = current_fig.add_subplot(111)
-        else:
-            current_fig, ax = plt.subplots(figsize=figsize)
-
-        max_field = float(self.optic.fields.max_field)
-        y_coords_normalized = be.to_numpy(self._field_coords[:, 1])
-        x_plot = y_coords_normalized * max_field
-
-        # Determine X-axis label
+    def _field_axis_label(self) -> str:
+        """Return the X-axis label matching the optic's field definition."""
         field_def = self.optic.fields.field_definition
-        x_label = "Field Coordinate"
         if field_def is not None:
             field_name = field_def.__class__.__name__
             if "Angle" in field_name:
-                x_label = "Angle (deg)"
+                return "Angle (deg)"
             elif "Height" in field_name:
-                x_label = "Height (mm)"
-        else:
-            # Fallback if no specific type is set but fields exist
-            x_label = "Field Coordinate"
+                return "Height (mm)"
+        return "Field Coordinate"
 
+    def _plot_mtf_curves(self, ax: Axes, x_plot) -> None:
+        """Plot the tangential/sagittal MTF curve for each wavelength/frequency."""
         axes_color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
         for i_wl, wp in enumerate(self.wavelengths):
@@ -207,6 +175,45 @@ class MTFvsField(BaseAnalysis):
                     label=f"{label_prefix} (Sag)",
                 )
 
+    def view(
+        self,
+        fig_to_plot_on: Figure | None = None,
+        figsize: tuple[float, float] = (8, 5),
+        *,
+        show: bool = True,
+    ) -> tuple[Figure, Axes]:
+        """
+        Plots the MTF versus the field coordinate for each frequency and wavelength.
+
+        Args:
+            fig_to_plot_on (Figure, optional): An existing matplotlib Figure to
+                plot on. If provided, the plot will be embedded in this figure.
+                If None (default), a new figure will be created.
+            figsize (tuple[float, float], optional): Size of the figure to create
+                if `fig_to_plot_on` is None. Defaults to (8, 5).
+            show (bool): If True (default), calls plt.show(). Set False for
+                headless use.
+
+        Returns:
+            tuple[Figure, Axes]: The matplotlib Figure and Axes objects
+                containing the plot.
+        """
+        is_gui_embedding = fig_to_plot_on is not None
+
+        if is_gui_embedding:
+            current_fig = fig_to_plot_on
+            current_fig.clear()
+            ax = current_fig.add_subplot(111)
+        else:
+            current_fig, ax = plt.subplots(figsize=figsize)
+
+        max_field = float(self.optic.fields.max_field)
+        y_coords_normalized = be.to_numpy(self._field_coords[:, 1])
+        x_plot = y_coords_normalized * max_field
+
+        x_label = self._field_axis_label()
+        self._plot_mtf_curves(ax, x_plot)
+
         ax.set_xlabel(x_label)
         ax.set_ylabel("Modulus of the OTF")
         ax.legend(bbox_to_anchor=(1.05, 0.5), loc="center left")
@@ -220,5 +227,6 @@ class MTFvsField(BaseAnalysis):
 
         if is_gui_embedding and hasattr(current_fig, "canvas"):
             current_fig.canvas.draw_idle()
-
+        if show and not is_gui_embedding:
+            plt.show()
         return current_fig, ax

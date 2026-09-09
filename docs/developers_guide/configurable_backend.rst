@@ -90,6 +90,28 @@ Example usage:
    # now every be.* call (e.g. be.matmul, be.exp) uses torch.cuda.FloatTensor,
    # with gradient support enabled.
 
+.. tip::
+   On VRAM-limited GPUs (e.g. 4-8 GB laptop/consumer cards), throughput is
+   **not monotonic** with ray count. As allocations approach the physical
+   VRAM limit, the CUDA driver starts spilling/evicting memory, and trace
+   speed can collapse by 5-10x well before you get an actual out-of-memory
+   error -- which makes the underlying cause easy to misdiagnose. If a
+   ``trace()`` call is much slower than expected, check
+   ``torch.cuda.max_memory_allocated()`` first: if it is close to your
+   card's total VRAM, reduce ``num_rays`` (or split the trace into smaller
+   batches) or switch to ``be.set_precision("float32")`` rather than
+   assuming there is a bug. When only the returned rays are needed,
+   ``trace(..., record=False)`` skips the per-surface ray snapshots and
+   roughly triples the ray count that fits on the card.
+
+   .. figure:: ../images/gpu_trace_before_after.png
+      :width: 85%
+
+      Throughput vs ray count on a 12 GB card (Cooke triplet, float64,
+      single wavelength). Traces stay fast until allocations reach physical
+      VRAM; skipping per-surface snapshots moves that point out by roughly
+      3x.
+
 Adding New Functionality
 ------------------------
 
@@ -138,3 +160,18 @@ Potential Future Backends
 
 .. note::
    For new contributions or questions about the backend layer, please open an issue or pull request on our GitHub repository. We welcome feedback and improvements!
+
+How to Extend This
+------------------
+
+**Scenario:** Add a backend-agnostic utility function to Optiland.
+
+**Step 1:** Write the function using only ``import optiland.backend as be`` — never import
+``numpy`` or ``torch`` directly inside Optiland modules.
+**Step 2:** If the function needs a backend-specific API (e.g., ``torch.autograd.grad``), add
+abstract and concrete implementations to ``AbstractBackend``, ``NumpyBackend``, and
+``TorchBackend`` in ``optiland/backend/``.
+**Step 3:** Test on both backends using the ``set_test_backend`` fixture from
+``tests/conftest.py`` and ``assert_allclose`` from ``tests/utils.py``.
+
+For step-by-step guidance, see :ref:`extension_recipes`.

@@ -23,6 +23,8 @@ This section contains examples of typical analysis tasks that can be performed w
     analysis/angle_vs_image_height_through_pupil
     analysis/angle_vs_image_height_through_field
     analysis/image_simulation
+    analysis/prescription
+    analysis/ghost_analysis
 
 Surface Analysis
 ----------------

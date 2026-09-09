@@ -6,12 +6,13 @@ operand types.
 
 In general, to use one of these operands in optimization, you
 can simply do the following:
-    1. Identify the key in the METRIC_DICT variable, or add your new operand.
-    2. Identify the input data dictionary that is required for the calculation
-       of this operand.
-    3. Add the operand to your optimization.OptimizationProblem instance using
-       the add_operand method. Include the operand type, target, weight, and
-       the input data (in dict format). See examples.
+
+1. Identify the key in the METRIC_DICT variable, or add your new operand.
+2. Identify the input data dictionary that is required for the calculation
+   of this operand.
+3. Add the operand to your optimization.OptimizationProblem instance using
+   the add_operand method. Include the operand type, target, weight, and
+   the input data (in dict format). See examples.
 
 Kramer Harrison, 2024
 """
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from optiland._suggest import did_you_mean
 from optiland.optimization.operand.aberration import AberrationOperand
 from optiland.optimization.operand.lens import LensOperand
 from optiland.optimization.operand.paraxial import ParaxialOperand
@@ -115,6 +117,13 @@ class OperandRegistry:
             func (function): The function to be registered.
             overwrite (bool): Whether to overwrite an existing registration.
 
+        Example:
+            >>> def my_operand(optic, surface_number):
+            ...     return optic.surfaces[surface_number].geometry.radius
+            >>> operand_registry.register("my_radius", my_operand)
+            >>> # Now usable in OptimizationProblem:
+            >>> # problem.add_operand("my_radius", target=10.0, input_data={...})
+
         """
         if name in self._registry and not overwrite:
             raise ValueError(f'Operand "{name}" is already registered.')
@@ -137,6 +146,10 @@ class OperandRegistry:
 
         """
         return name in self._registry
+
+    def __iter__(self):
+        """Iterate over the registered operand names."""
+        return iter(self._registry)
 
     def __repr__(self):
         return f"OperandRegistry({list(self._registry.keys())})"
@@ -207,7 +220,12 @@ class Operand:
         metric_function = operand_registry.get(self.operand_type)
         if metric_function:
             return metric_function(**self.input_data)
-        raise ValueError(f"Unknown operand type: {self.operand_type}")
+        raise ValueError(
+            f"Unknown operand type {self.operand_type!r}."
+            f"{did_you_mean(str(self.operand_type), operand_registry)} "
+            "List the registered operands with "
+            "list(optiland.optimization.operand_registry)."
+        )
 
     def delta_target(self):
         """Calculate the difference between the value and target"""

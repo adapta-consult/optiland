@@ -60,15 +60,69 @@ class CoordinateSystem:
             reference_cs: The reference coordinate system.
         """
 
-        self.x = be.array(x)
-        self.y = be.array(y)
-        self.z = be.array(z)
+        self.x = x
+        self.y = y
+        self.z = z
 
-        self.rx = be.array(rx)
-        self.ry = be.array(ry)
-        self.rz = be.array(rz)
+        self.rx = rx
+        self.ry = ry
+        self.rz = rz
 
         self.reference_cs = reference_cs
+
+    @property
+    def x(self) -> BEArray:
+        """The x-coordinate of the origin, as a backend array."""
+        return self._x
+
+    @x.setter
+    def x(self, value: ScalarOrArray) -> None:
+        self._x = be.array(value)
+
+    @property
+    def y(self) -> BEArray:
+        """The y-coordinate of the origin, as a backend array."""
+        return self._y
+
+    @y.setter
+    def y(self, value: ScalarOrArray) -> None:
+        self._y = be.array(value)
+
+    @property
+    def z(self) -> BEArray:
+        """The z-coordinate of the origin, as a backend array."""
+        return self._z
+
+    @z.setter
+    def z(self, value: ScalarOrArray) -> None:
+        self._z = be.array(value)
+
+    @property
+    def rx(self) -> BEArray:
+        """The rotation around the x-axis, as a backend array."""
+        return self._rx
+
+    @rx.setter
+    def rx(self, value: ScalarOrArray) -> None:
+        self._rx = be.array(value)
+
+    @property
+    def ry(self) -> BEArray:
+        """The rotation around the y-axis, as a backend array."""
+        return self._ry
+
+    @ry.setter
+    def ry(self, value: ScalarOrArray) -> None:
+        self._ry = be.array(value)
+
+    @property
+    def rz(self) -> BEArray:
+        """The rotation around the z-axis, as a backend array."""
+        return self._rz
+
+    @rz.setter
+    def rz(self, value: ScalarOrArray) -> None:
+        self._rz = be.array(value)
 
     def localize(self, rays: RealRays):
         """Localizes the rays in the coordinate system.
@@ -107,6 +161,57 @@ class CoordinateSystem:
             self.reference_cs.globalize(rays)
 
     @property
+    def frame_in_gcs(
+        self,
+    ) -> tuple[tuple[BEArray, BEArray, BEArray], tuple[BEArray, BEArray, BEArray]]:
+        """Returns the origin and the local +z axis of the coordinate system,
+            both expressed in the global coordinate system.
+
+        A single globalized probe carries both: its position becomes the
+        origin and its direction cosines become the local +z axis, which is
+        the surface normal at the vertex.
+
+        Returns:
+            A tuple ``(origin, axis)``, each a tuple of x, y and z components.
+        """
+        # Fast path: with no rotation anywhere in the reference chain,
+        # ``globalize`` reduces to pure translation, so the origin is the
+        # accumulated (x, y, z) and the axis is global +z. The truthiness
+        # checks mirror the ``if rx:`` branches of ``globalize`` exactly.
+        # This matters because ``build_paraxial_path`` reads one frame per
+        # surface per first-order operation; the probe below costs an order
+        # of magnitude more per call.
+        cs: CoordinateSystem | None = self
+        rotation_free = True
+        while cs is not None:
+            if cs._rx or cs._ry or cs._rz:
+                rotation_free = False
+                break
+            cs = cs.reference_cs
+        if rotation_free:
+            # The 0.0 seeds reproduce the probe's float promotion and keep
+            # any gradient flow through the translations intact.
+            x = 0.0 + self._x
+            y = 0.0 + self._y
+            z = 0.0 + self._z
+            ref = self.reference_cs
+            while ref is not None:
+                x = x + ref._x
+                y = y + ref._y
+                z = z + ref._z
+                ref = ref.reference_cs
+            zero = be.atleast_1d(be.array(0.0))
+            one = be.atleast_1d(be.array(1.0))
+            return (
+                (be.atleast_1d(x), be.atleast_1d(y), be.atleast_1d(z)),
+                (zero, zero, one),
+            )
+
+        vector = RealRays(0, 0, 0, 0, 0, 1, 1, 1)
+        self.globalize(vector)
+        return (vector.x, vector.y, vector.z), (vector.L, vector.M, vector.N)
+
+    @property
     def position_in_gcs(self) -> tuple[BEArray, BEArray, BEArray]:
         """Returns the position of the coordinate system in the global coordinate
             system.
@@ -114,9 +219,7 @@ class CoordinateSystem:
         Returns:
             A tuple containing the x, y, and z coordinates of the position.
         """
-        vector = RealRays(0, 0, 0, 0, 0, 1, 1, 1)
-        self.globalize(vector)
-        return vector.x, vector.y, vector.z
+        return self.frame_in_gcs[0]
 
     def get_rotation_matrix(self) -> BEArray:
         """Get the rotation matrix of the coordinate system

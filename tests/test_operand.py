@@ -70,34 +70,51 @@ class TestAberrationOperand:
     def test_seidel(self, set_test_backend, hubble):
         assert_allclose(
             operand.AberrationOperand.seidels(hubble, 0),
-            0.0014539022855417389,
+            0.0007595410648595602,
         )
 
     def test_TSC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TSC(hubble, 2), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TSC(hubble, 2), -0.08528104851182583,
+        )
 
     def test_SC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.SC(hubble, 2), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.SC(hubble, 2), -4.093496084924931,
+        )
 
     def test_CC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.CC(hubble, 2), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.CC(hubble, 2), -1.7735249708111127,
+        )
 
     def test_TCC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TCC(hubble, 1), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TCC(hubble, 1), 5.344862220471395,
+        )
 
     def test_TAC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TAC(hubble, 1), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TAC(hubble, 1), -0.04291149104517085,
+        )
 
     def test_AC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.AC(hubble, 1), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.AC(hubble, 1), -2.059754466636744,
+        )
 
     def test_TPC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TPC(hubble, 1), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TPC(hubble, 1), 0.04291149104517085,
+        )
 
     def test_PC(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.PC(hubble, 1), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.PC(hubble, 1), 2.059754466636744,
+        )
 
     def test_DC(self, set_test_backend, hubble):
+        # Surface 1 (flat stop, R=inf) contributes 0 to distortion.
         assert_allclose(operand.AberrationOperand.DC(hubble, 1), 0.0)
 
     def test_TAchC(self, set_test_backend, hubble):
@@ -110,31 +127,49 @@ class TestAberrationOperand:
         assert_allclose(operand.AberrationOperand.TchC(hubble, 1), 0.0)
 
     def test_TSC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TSC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TSC_sum(hubble), -6.735430351945126e-05,
+        )
 
     def test_SC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.SC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.SC_sum(hubble), -0.003233011115258755,
+        )
 
     def test_CC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.CC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.CC_sum(hubble), 0.008095769346019077,
+        )
 
     def test_TCC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TCC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TCC_sum(hubble), 0.024287308038056565,
+        )
 
     def test_TAC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TAC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TAC_sum(hubble), -0.034842575437082024,
+        )
 
     def test_AC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.AC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.AC_sum(hubble), -1.6724459728074144,
+        )
 
     def test_TPC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.TPC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.TPC_sum(hubble), -0.3081888930539122,
+        )
 
     def test_PC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.PC_sum(hubble), 0.0)
+        assert_allclose(
+            operand.AberrationOperand.PC_sum(hubble), -14.793087668927964,
+        )
 
     def test_DC_sum(self, set_test_backend, hubble):
-        assert_allclose(operand.AberrationOperand.DC_sum(hubble), 0.03489370392123652)
+        assert_allclose(
+            operand.AberrationOperand.DC_sum(hubble), 0.018229011190635025,
+        )
 
     def test_TAchC_sum(self, set_test_backend, hubble):
         assert_allclose(operand.AberrationOperand.TAchC_sum(hubble), 0.0)
@@ -292,6 +327,75 @@ class TestRayOperand:
             0.025626727777956947,
         )
 
+    def create_tir_optic(self):
+        """A finite-conjugate singlet whose marginal rays undergo total
+        internal reflection, producing NaN intersections on the image
+        surface (see issue #396).
+        """
+        lens = Optic()
+        lens.surfaces.add(index=0, thickness=10)
+        lens.surfaces.add(
+            index=1, thickness=7, radius=20.0, is_stop=True, material="N-SF11"
+        )
+        lens.surfaces.add(index=2, thickness=23.0)
+        lens.surfaces.add(index=3)
+        lens.set_aperture(aperture_type="EPD", value=20)
+        lens.fields.set_type(field_type="angle")
+        lens.fields.add(y=0)
+        lens.wavelengths.add(value=0.55, is_primary=True)
+        return lens
+
+    def test_rms_spot_size_nan_policy_propagate(self, set_test_backend):
+        data = {
+            "optic": self.create_tir_optic(),
+            "surface_number": -1,
+            "Hx": 0.0,
+            "Hy": 0.0,
+            "wavelength": 0.55,
+            "num_rays": 5,
+        }
+        assert be.isnan(operand.RayOperand.rms_spot_size(**data))
+
+    def test_rms_spot_size_nan_policy_omit(self, set_test_backend):
+        data = {
+            "optic": self.create_tir_optic(),
+            "surface_number": -1,
+            "Hx": 0.0,
+            "Hy": 0.0,
+            "wavelength": 0.55,
+            "num_rays": 5,
+            "nan_policy": "omit",
+        }
+        result = operand.RayOperand.rms_spot_size(**data)
+        assert not be.isnan(result)
+        assert_allclose(result, 10.27176337005003)
+
+    def test_rms_spot_size_nan_policy_raise(self, set_test_backend):
+        data = {
+            "optic": self.create_tir_optic(),
+            "surface_number": -1,
+            "Hx": 0.0,
+            "Hy": 0.0,
+            "wavelength": 0.55,
+            "num_rays": 5,
+            "nan_policy": "raise",
+        }
+        with pytest.raises(ValueError, match="NaN ray intersection"):
+            operand.RayOperand.rms_spot_size(**data)
+
+    def test_rms_spot_size_invalid_nan_policy(self, set_test_backend, hubble):
+        data = {
+            "optic": hubble,
+            "surface_number": -1,
+            "Hx": 0.0,
+            "Hy": 1.0,
+            "wavelength": 0.55,
+            "num_rays": 100,
+            "nan_policy": "bogus",
+        }
+        with pytest.raises(ValueError, match="Invalid nan_policy"):
+            operand.RayOperand.rms_spot_size(**data)
+
     def test_opd_diff(self, set_test_backend, hubble):
         data = {
             "optic": hubble,
@@ -312,7 +416,7 @@ class TestRayOperand:
         }
         assert_allclose(
             operand.RayOperand.OPD_difference(**data),
-             0.001328702368213,
+            0.001329917133127,
         )
 
     def test_opd_diff_new_dist(self, set_test_backend, hubble):
@@ -380,7 +484,7 @@ class TestRayOperand:
             point_ray_pupil_coords=(0.0, 0.0),
             wavelength=wavelength,
         )
-        assert_allclose(dist1, -7.412094834746042)
+        assert_allclose(dist1, 7.4120948347460525)
 
         dist2 = RayOperand.clearance(
             optic=optic,
@@ -392,7 +496,7 @@ class TestRayOperand:
             point_ray_pupil_coords=(0.0, 0.0),
             wavelength=wavelength,
         )
-        assert_allclose(dist2, -13.065596389231768)
+        assert_allclose(dist2, 13.065596389231784)
 
         dist3 = RayOperand.clearance(
             optic=optic,
@@ -404,7 +508,28 @@ class TestRayOperand:
             point_ray_pupil_coords=(0.0, 0.0),
             wavelength=wavelength,
         )
-        assert_allclose(dist3, -15.730530102711754)
+        assert_allclose(dist3, 15.730530102711763)
+
+    def test_clearance_non_reflective(self, set_test_backend, cooke_triplet):
+        """Sign should not flip for a forward-propagating (N > 0) line ray.
+
+        This guards against reintroducing a blanket sign correction in
+        `clearance` (see issue #354): such a change would leave the
+        mirror-based `test_clearance` cases looking fixed while silently
+        flipping this case, which is expected to be unaffected since N > 0
+        throughout this system.
+        """
+        dist = RayOperand.clearance(
+            optic=cooke_triplet,
+            line_ray_surface_idx=1,
+            line_ray_field_coords=(0.0, 0.0),
+            line_ray_pupil_coords=(0.0, -1.0),
+            point_ray_surface_idx=7,
+            point_ray_field_coords=(0.0, 1.0),
+            point_ray_pupil_coords=(0.0, 0.0),
+            wavelength=0.55,
+        )
+        assert_allclose(dist, 17.765903028537014)
 
     def test_AOI(self, set_test_backend, cooke_triplet):
         """Test the angle of incidence operand using CookeTriplet."""

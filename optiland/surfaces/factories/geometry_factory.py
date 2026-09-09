@@ -14,6 +14,8 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import optiland.backend as be
+import optiland.plugins as plugins
+from optiland._suggest import options_hint
 from optiland.geometries import (
     BiconicGeometry,
     ChebyshevPolynomialGeometry,
@@ -52,6 +54,8 @@ from optiland.surfaces.factories.geometry_configs import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from optiland.coordinate_system import CoordinateSystem
 
 
@@ -389,6 +393,34 @@ geometry_mapper = {
 class GeometryFactory:
     """Factory for creating surface geometry objects based on configuration."""
 
+    @classmethod
+    def register(
+        cls,
+        name: str,
+        create_fn: Callable,
+        config_cls: type,
+        *,
+        overwrite: bool = False,
+    ) -> None:
+        """Register a new geometry type.
+
+        Args:
+            name: The surface_type string key (e.g. 'even_asphere').
+            create_fn: A function ``(cs, config) -> geometry`` instance.
+            config_cls: A dataclass whose fields define the accepted kwargs.
+            overwrite: Allow replacing an existing registration.
+
+        Raises:
+            ValueError: If name is already registered and overwrite is False.
+        """
+        if name in geometry_mapper and not overwrite:
+            raise ValueError(
+                f"Geometry type '{name}' is already registered. "
+                "Pass overwrite=True to replace it."
+            )
+        geometry_mapper[name] = create_fn
+        config_registry[name] = config_cls
+
     @staticmethod
     def create(surface_type: str, cs: Any, **kwargs: Any) -> Any:
         """
@@ -406,7 +438,15 @@ class GeometryFactory:
             config_cls = config_registry[surface_type]
             create_fn = geometry_mapper[surface_type]
         except KeyError as err:
-            raise ValueError(f"Surface type '{surface_type}' not recognized.") from err
+            plugins.load_plugins(plugins.SURFACES_GROUP)
+            try:
+                config_cls = config_registry[surface_type]
+                create_fn = geometry_mapper[surface_type]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown surface type, got {surface_type!r}."
+                    f"{options_hint(str(surface_type), geometry_mapper)}"
+                ) from err
 
         # Filter kwargs to only include those relevant to the specific config class
         config_fields = {f.name for f in fields(config_cls)}
